@@ -1,9 +1,4 @@
 # Databricks notebook source
-!pip install databricks-feature-engineering
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 dbutils.widgets.text(
     "input_table_path",
     "/databricks-datasets/nyctaxi-with-zipcodes/subsampled",
@@ -67,14 +62,14 @@ df_labels = (
     df_raw
     .select(
         F.col("customerID").alias("customer_id"),
-        F.when(F.col("Churn") == "Yes", F.lit(1)).otherwise(F.lit(0)).cast("int").alias("label")
+        F.when(F.col("Churn") == "Yes", F.lit(1)).otherwise(F.lit(0)).cast("int").alias("churn")
     )
     .dropDuplicates(["customer_id"])
 )
 
 df_labels.write.mode("overwrite").saveAsTable(label_table_name)
 
-display(df_labels.groupBy("label").count())
+display(df_labels.groupBy("churn").count())
 
 
 # COMMAND ----------

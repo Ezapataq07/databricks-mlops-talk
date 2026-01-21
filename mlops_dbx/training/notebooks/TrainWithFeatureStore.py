@@ -16,22 +16,11 @@
 
 # COMMAND ----------
 
-# MAGIC %load_ext autoreload
-# MAGIC %autoreload 2
+# %pip install -r ../../requirements.txt
 
 # COMMAND ----------
 
-import os
-notebook_path =  '/Workspace/' + os.path.dirname(dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get())
-%cd $notebook_path
-
-# COMMAND ----------
-
-# MAGIC %pip install -r ../../requirements.txt
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
+# dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -40,13 +29,13 @@ dbutils.library.restartPython()
 # Provide them via DB widgets or notebook arguments.
 
 # Notebook Environment
-dbutils.widgets.dropdown("env", "staging", ["staging", "prod"], "Environment Name")
+dbutils.widgets.dropdown("env", "staging", ["dev","staging", "prod"], "Environment Name")
 env = dbutils.widgets.get("env")
 
 # Path to the Hive-registered Delta table containing the training data.
 dbutils.widgets.text(
-    "training_data_path",
-    "/databricks-datasets/nyctaxi-with-zipcodes/subsampled",
+    "training_data_raw",
+    "mlops_dbx_talk_dev.churn.telco_churn_train_raw",
     label="Path to the training data",
 )
 
@@ -60,145 +49,65 @@ dbutils.widgets.text(
 
 # Unity Catalog registered model name to use for the trained mode.
 dbutils.widgets.text(
-    "model_name", "dev.mlops_dbx.mlops_dbx-model", label="Full (Three-Level) Model Name"
+    "model_name", "mlops_dbx_talk_dev.churn.telco_churn_model", label="Full (Three-Level) Model Name"
 )
 
 # Pickup features table name
 dbutils.widgets.text(
-    "pickup_features_table",
-    "dev.mlops_dbx.trip_pickup_features",
-    label="Pickup Features Table",
-)
-
-# Dropoff features table name
-dbutils.widgets.text(
-    "dropoff_features_table",
-    "dev.mlops_dbx.trip_dropoff_features",
-    label="Dropoff Features Table",
+    "features_table",
+    "mlops_dbx_talk_dev.churn.telco_cust_features",
+    label="Features Table",
 )
 
 # COMMAND ----------
 
 # DBTITLE 1,Define input and output variables
-input_table_path = dbutils.widgets.get("training_data_path")
+input_table_name = dbutils.widgets.get("training_data_raw")
 experiment_name = dbutils.widgets.get("experiment_name")
 model_name = dbutils.widgets.get("model_name")
 
 # COMMAND ----------
 
-# DBTITLE 1, Set experiment
+import pyspark.sql.functions as f
 import mlflow
+from databricks.feature_engineering import FeatureLookup, FeatureEngineeringClient
 
-mlflow.set_experiment(experiment_name)
+
+# COMMAND ----------
+
+# DBTITLE 1, Set experiment
+mlflow.set_tracking_uri("databricks")
 mlflow.set_registry_uri('databricks-uc')
+
+if mlflow.get_experiment_by_name(experiment_name) is None:
+    mlflow.create_experiment(name=experiment_name)
+mlflow.set_experiment(experiment_name)
 
 # COMMAND ----------
 
 # DBTITLE 1, Load raw data
-raw_data = spark.read.format("delta").load(input_table_path)
+raw_data = spark.table(input_table_name).select(
+        f.col("customerID").alias("customer_id"),
+        f.when(f.col("Churn") == "Yes", f.lit(1)).otherwise(f.lit(0)).cast("int").alias("churn")
+    )
 raw_data.display()
 
 # COMMAND ----------
 
-# DBTITLE 1, Helper functions
-from datetime import timedelta, timezone
-import math
-import mlflow.pyfunc
-import pyspark.sql.functions as F
-from pyspark.sql.types import IntegerType
-
-
-def rounded_unix_timestamp(dt, num_minutes=15):
-    """
-    Ceilings datetime dt to interval num_minutes, then returns the unix timestamp.
-    """
-    nsecs = dt.minute * 60 + dt.second + dt.microsecond * 1e-6
-    delta = math.ceil(nsecs / (60 * num_minutes)) * (60 * num_minutes) - nsecs
-    return int((dt + timedelta(seconds=delta)).replace(tzinfo=timezone.utc).timestamp())
-
-
-rounded_unix_timestamp_udf = F.udf(rounded_unix_timestamp, IntegerType())
-
-
-def rounded_taxi_data(taxi_data_df):
-    # Round the taxi data timestamp to 15 and 30 minute intervals so we can join with the pickup and dropoff features
-    # respectively.
-    taxi_data_df = (
-        taxi_data_df.withColumn(
-            "rounded_pickup_datetime",
-            F.to_timestamp(
-                rounded_unix_timestamp_udf(
-                    taxi_data_df["tpep_pickup_datetime"], F.lit(15)
-                )
-            ),
-        )
-        .withColumn(
-            "rounded_dropoff_datetime",
-            F.to_timestamp(
-                rounded_unix_timestamp_udf(
-                    taxi_data_df["tpep_dropoff_datetime"], F.lit(30)
-                )
-            ),
-        )
-        .drop("tpep_pickup_datetime")
-        .drop("tpep_dropoff_datetime")
-    )
-    taxi_data_df.createOrReplaceTempView("taxi_data")
-    return taxi_data_df
-
-
-def get_latest_model_version(model_name):
-    latest_version = 1
-    mlflow_client = MlflowClient()
-    for mv in mlflow_client.search_model_versions(f"name='{model_name}'"):
-        version_int = int(mv.version)
-        if version_int > latest_version:
-            latest_version = version_int
-    return latest_version
-
-
-# COMMAND ----------
-
-# DBTITLE 1, Read taxi data for training
-taxi_data = rounded_taxi_data(raw_data)
-taxi_data.display()
-
-# COMMAND ----------
-
 # DBTITLE 1, Create FeatureLookups
-from databricks.feature_engineering import FeatureLookup
-import mlflow
+features_table = dbutils.widgets.get("features_table")
 
-pickup_features_table = dbutils.widgets.get("pickup_features_table")
-dropoff_features_table = dbutils.widgets.get("dropoff_features_table")
-
-pickup_feature_lookups = [
+feature_lookups = [
     FeatureLookup(
-        table_name=pickup_features_table,
-        feature_names=[
-            "mean_fare_window_1h_pickup_zip",
-            "count_trips_window_1h_pickup_zip",
-        ],
-        lookup_key=["pickup_zip"],
-        timestamp_lookup_key=["rounded_pickup_datetime"],
-    ),
-]
-
-dropoff_feature_lookups = [
-    FeatureLookup(
-        table_name=dropoff_features_table,
-        feature_names=["count_trips_window_30m_dropoff_zip", "dropoff_is_weekend"],
-        lookup_key=["dropoff_zip"],
-        timestamp_lookup_key=["rounded_dropoff_datetime"],
+        table_name=features_table,
+        feature_names=None,
+        lookup_key=["customer_id"],
     ),
 ]
 
 # COMMAND ----------
 
 # DBTITLE 1, Create Training Dataset
-
-from databricks.feature_engineering import FeatureEngineeringClient
-
 # End any existing runs (in the case this notebook is being run for a second time)
 mlflow.end_run()
 
@@ -207,17 +116,14 @@ mlflow.start_run()
 
 # Since the rounded timestamp columns would likely cause the model to overfit the data
 # unless additional feature engineering was performed, exclude them to avoid training on them.
-exclude_columns = ["rounded_pickup_datetime", "rounded_dropoff_datetime"]
 
 fe = FeatureEngineeringClient()
 
 # Create the training set that includes the raw input data merged with corresponding features from both feature tables
 training_set = fe.create_training_set(
-    df=taxi_data, # specify the df 
-    feature_lookups=pickup_feature_lookups + dropoff_feature_lookups, 
-    # both features need to be available; defined in GenerateAndWriteFeatures &/or feature-engineering-workflow-resource.yml
-    label="fare_amount",
-    exclude_columns=exclude_columns,
+    df=raw_data, # specify the df 
+    feature_lookups=feature_lookups, 
+    label="churn",
 )
 
 
@@ -226,43 +132,78 @@ training_df = training_set.load_df()
 
 # COMMAND ----------
 
-# Display the training dataframe, and note that it contains both the raw input data and the features from the Feature Store, like `dropoff_is_weekend`
+# Display the training dataframe, and note that it contains both the raw input data and the features from the Feature Store
 training_df.display()
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC Train a LightGBM model on the data returned by `TrainingSet.to_df`, then log the model with `FeatureStoreClient.log_model`. The model will be packaged with feature metadata.
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OrdinalEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestClassifier
+
+numeric_features = ["tenure_months","tenure_years","monthly_charges","total_charges_filled","avg_monthly_charge_lifetime","abs_charges_gap"]
+categorical_features = ["gender","internet_service","contract_type","payment_method","tenure_bucket","monthly_charge_bucket"]
+
+preprocessor = ColumnTransformer([
+    ('num', StandardScaler(), numeric_features),
+    ('cat', OrdinalEncoder(), categorical_features)
+    ],
+    remainder="passthrough"
+)
+
+pipeline = Pipeline([
+    ('preprocessor', preprocessor),
+    ('classifier', RandomForestClassifier(random_state=21))
+])
 
 # COMMAND ----------
 
 # DBTITLE 1, Train model
-import lightgbm as lgb
-from sklearn.model_selection import train_test_split
-import mlflow.lightgbm
-from mlflow.tracking import MlflowClient
 
+from sklearn.model_selection import GridSearchCV, train_test_split
+
+
+param_grid = [
+    {
+		'classifier': [RandomForestClassifier(random_state=21)],
+		'classifier__n_estimators': [100, 200, 75],
+		'classifier__max_depth': [5, 10, 20],
+        'classifier__max_features': ['sqrt',None]
+	}
+]
+
+grid_search = GridSearchCV(
+    pipeline,
+    param_grid,
+    cv=3,
+    scoring='recall',
+    n_jobs=-1,
+    verbose=1
+)
 
 features_and_label = training_df.columns
 
 # Collect data into a Pandas array for training
 data = training_df.toPandas()[features_and_label]
 
-train, test = train_test_split(data, random_state=123)
-X_train = train.drop(["fare_amount"], axis=1)
-X_test = test.drop(["fare_amount"], axis=1)
-y_train = train.fare_amount
-y_test = test.fare_amount
+train, test = train_test_split(data, train_size=0.8,random_state=123)
+X_train = train.drop(["customer_id","churn"], axis=1)
+X_test = test.drop(["customer_id","churn"], axis=1)
+y_train = train.churn
+y_test = test.churn
 
-mlflow.lightgbm.autolog()
-train_lgb_dataset = lgb.Dataset(X_train, label=y_train.values)
-test_lgb_dataset = lgb.Dataset(X_test, label=y_test.values)
 
-param = {"num_leaves": 32, "objective": "regression", "metric": "rmse"}
-num_rounds = 100
 
-# Train a lightGBM model
-model = lgb.train(param, train_lgb_dataset, num_rounds)
+
+mlflow.sklearn.autolog(log_input_examples=True, log_models=False, max_tuning_runs=30)
+
+grid_search.fit(X_train, y_train)
+
+print("Best parameters:", grid_search.best_params_)
+print("Best recall:", grid_search.best_score_)
+
+y_pred = grid_search.predict(X_test)
 
 # COMMAND ----------
 
