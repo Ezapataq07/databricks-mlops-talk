@@ -138,9 +138,12 @@ training_df.display()
 # COMMAND ----------
 
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, OrdinalEncoder
+from sklearn.preprocessing import StandardScaler, OrdinalEncoder, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.feature_selection import SelectKBest
+from sklearn.decomposition import PCA
 
 numeric_features = ["tenure_months","tenure_years","monthly_charges","total_charges_filled","avg_monthly_charge_lifetime","abs_charges_gap"]
 categorical_features = ["gender","internet_service","contract_type","payment_method","tenure_bucket","monthly_charge_bucket"]
@@ -154,7 +157,8 @@ preprocessor = ColumnTransformer([
 
 pipeline = Pipeline([
     ('preprocessor', preprocessor),
-    ('classifier', RandomForestClassifier(random_state=21))
+    ('feature_selection', SelectKBest()),
+    ('classifier', LogisticRegression(random_state=29, n_jobs=-1))
 ])
 
 # COMMAND ----------
@@ -166,18 +170,18 @@ from sklearn.model_selection import GridSearchCV, train_test_split
 
 param_grid = [
     {
-		'classifier': [RandomForestClassifier(random_state=21)],
-		'classifier__n_estimators': [100, 200, 75],
-		'classifier__max_depth': [5, 10, 20],
-        'classifier__max_features': ['sqrt',None]
+		'classifier': [ LogisticRegression(random_state=29, n_jobs=-1)],
+		'classifier__max_iter': [500, 750,1000],
+		# 'classifier__max_depth': [5, 10, 20],
+        'feature_selection__k': ["all", 30, 15]
 	}
 ]
 
 grid_search = GridSearchCV(
     pipeline,
     param_grid,
-    cv=3,
-    scoring='recall',
+    cv=5,
+    scoring='accuracy',
     n_jobs=-1,
     verbose=1
 )
@@ -201,7 +205,7 @@ mlflow.sklearn.autolog(log_input_examples=True, log_models=False, max_tuning_run
 grid_search.fit(X_train, y_train)
 
 print("Best parameters:", grid_search.best_params_)
-print("Best recall:", grid_search.best_score_)
+print("Best accuracy:", grid_search.best_score_)
 
 y_pred = grid_search.predict(X_test)
 
@@ -210,18 +214,19 @@ y_pred = grid_search.predict(X_test)
 # DBTITLE 1, Log model and return output.
 # Log the trained model with MLflow and package it with feature lookup information.
 fe.log_model(
-    model=model, #specify model
+    model=grid_search, #specify model
     artifact_path="model_packaged",
-    flavor=mlflow.lightgbm,
+    flavor=mlflow.sklearn,
     training_set=training_set,
     registered_model_name=model_name,
 )
 
+mlflow.end_run()
 
-# The returned model URI is needed by the model deployment notebook.
-model_version = get_latest_model_version(model_name)
-model_uri = f"models:/{model_name}/{model_version}"
-dbutils.jobs.taskValues.set("model_uri", model_uri)
-dbutils.jobs.taskValues.set("model_name", model_name)
-dbutils.jobs.taskValues.set("model_version", model_version)
-dbutils.notebook.exit(model_uri)
+# # The returned model URI is needed by the model deployment notebook.
+# model_version = get_latest_model_version(model_name)
+# model_uri = f"models:/{model_name}/{model_version}"
+# dbutils.jobs.taskValues.set("model_uri", model_uri)
+# dbutils.jobs.taskValues.set("model_name", model_name)
+# dbutils.jobs.taskValues.set("model_version", model_version)
+# dbutils.notebook.exit(model_uri)
