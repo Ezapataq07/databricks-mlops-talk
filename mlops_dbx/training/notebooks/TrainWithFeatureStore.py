@@ -71,7 +71,9 @@ model_name = dbutils.widgets.get("model_name")
 import pyspark.sql.functions as f
 import mlflow
 from databricks.feature_engineering import FeatureLookup, FeatureEngineeringClient
-
+from mlflow.client import MlflowClient
+from mlflow.models.signature import infer_signature
+import time
 
 # COMMAND ----------
 
@@ -108,11 +110,7 @@ feature_lookups = [
 # COMMAND ----------
 
 # DBTITLE 1, Create Training Dataset
-# End any existing runs (in the case this notebook is being run for a second time)
-mlflow.end_run()
 
-# Start an mlflow run, which is needed for the feature store to log the model
-mlflow.start_run()
 
 # Since the rounded timestamp columns would likely cause the model to overfit the data
 # unless additional feature engineering was performed, exclude them to avoid training on them.
@@ -134,6 +132,14 @@ training_df = training_set.load_df()
 
 # Display the training dataframe, and note that it contains both the raw input data and the features from the Feature Store
 training_df.display()
+
+# COMMAND ----------
+
+# End any existing runs (in the case this notebook is being run for a second time)
+mlflow.end_run()
+
+# Start an mlflow run, which is needed for the feature store to log the model
+mlflow.start_run()
 
 # COMMAND ----------
 
@@ -193,7 +199,7 @@ data = training_df.toPandas()[features_and_label]
 
 train, test = train_test_split(data, train_size=0.8,random_state=123)
 X_train = train.drop(["customer_id","churn"], axis=1)
-X_test = test.drop(["customer_id","churn"], axis=1)
+X_test = test.drop(["churn"], axis=1)
 y_train = train.churn
 y_test = test.churn
 
@@ -208,20 +214,39 @@ print("Best parameters:", grid_search.best_params_)
 print("Best accuracy:", grid_search.best_score_)
 
 y_pred = grid_search.predict(X_test)
+y_pred_proba = grid_search.predict_proba(X_test)[:,1]
 
 # COMMAND ----------
 
 # DBTITLE 1, Log model and return output.
 # Log the trained model with MLflow and package it with feature lookup information.
-fe.log_model(
+signature = infer_signature(X_train, grid_search.predict(X_train))
+
+model_info = fe.log_model(
     model=grid_search, #specify model
     artifact_path="model_packaged",
     flavor=mlflow.sklearn,
     training_set=training_set,
+    signature=signature,
     registered_model_name=model_name,
 )
 
-mlflow.end_run()
+eval_data = X_test
+eval_data["churn"] = y_test
+eval_data["predicted_churn"] = y_pred
+
+mlflow.evaluate(
+    # model_info.model_uri,
+    data=eval_data,
+    targets = "churn",
+    predictions="predicted_churn",
+    model_type = "classifier"
+)
+
+mlflow.end_run()    
+
+# client = MlflowClient()
+# client.set_registered_model_alias(name=model_name, alias="staging", version=model_info.version)
 
 # # The returned model URI is needed by the model deployment notebook.
 # model_version = get_latest_model_version(model_name)
@@ -230,3 +255,27 @@ mlflow.end_run()
 # dbutils.jobs.taskValues.set("model_name", model_name)
 # dbutils.jobs.taskValues.set("model_version", model_version)
 # dbutils.notebook.exit(model_uri)
+
+# COMMAND ----------
+
+client = MlflowClient()
+run_id = model_info.run_id
+
+def find_version_by_run(model_name, run_id, max_wait_s=60):
+    for _ in range(max_wait_s):
+        for mv in client.search_model_versions(f"name='{model_name}'"):
+            if getattr(mv, "run_id", None) == run_id or str(mv.source).endswith('/model'):
+                return int(mv.version)
+        time.sleep(1)
+    return None
+
+version = getattr(model_info, "registered_model_version", None)
+if version is None:
+    version = find_version_by_run(model_name, run_id)
+    
+client.set_registered_model_alias(name=model_name, alias="staging", version=version)
+
+# COMMAND ----------
+
+spark.createDataFrame(train).write.mode("overwrite").saveAsTable("mlops_dbx_talk_dev.churn.telco_churn_train")
+spark.createDataFrame(test).write.mode("overwrite").saveAsTable("mlops_dbx_talk_dev.churn.telco_churn_validation")
