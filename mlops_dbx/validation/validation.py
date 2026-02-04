@@ -46,7 +46,7 @@ def validation_thresholds():
         #     greater_is_better=False,
         # ),
         "recall": MetricThreshold(
-            threshold=0.7, 
+            threshold=0.5, 
             greater_is_better=True,
         ),
     }

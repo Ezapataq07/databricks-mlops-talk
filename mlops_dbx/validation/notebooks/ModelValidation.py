@@ -107,6 +107,7 @@ import tempfile
 import traceback
 
 from mlflow.tracking.client import MlflowClient
+from mlflow.models.evaluation.base import EvaluationResult
 
 client = MlflowClient(registry_uri="databricks-uc")
 mlflow.set_registry_uri('databricks-uc')
@@ -213,7 +214,8 @@ def generate_description(training_run):
 
 def log_to_model_description(run, success):
     run_link = get_run_link(run.info)
-    description = client.get_model_version(model_name, model_version).description
+    description = client.get_model_version_by_alias(model_name, model_version).description
+    version = client.get_model_version_by_alias(model_name, model_version).version
     status = "SUCCESS" if success else "FAILURE"
     if description != "":
         description += "\n\n---\n\n"
@@ -221,11 +223,12 @@ def log_to_model_description(run, success):
         status, run_link
     )
     client.update_model_version(
-        name=model_name, version=model_version, description=description
+        name=model_name, version=version, description=description
     )
 
 
 # COMMAND ----------
+
 
 
 # Temporary fix as FS model can't predict as a pyfunc model
@@ -234,11 +237,11 @@ def log_to_model_description(run, success):
 
 from databricks.feature_store import FeatureStoreClient
 
-def get_fs_model(df):
+def get_fs_model(df, model_uri):
     fs_client = FeatureStoreClient()
     return (
         fs_client.score_batch(model_uri, spark.createDataFrame(df))
-        .select("prediction")
+        # .select("prediction")
         .toPandas()
     )
 
@@ -263,20 +266,29 @@ with mlflow.start_run(
 
     try:
         eval_result = mlflow.evaluate(
-            
-            model=get_fs_model,
-            
-            data=data,
+            # model=get_fs_model,
+            data=get_fs_model(data.toPandas(), model_uri),
             targets=targets,
+            predictions="prediction",
             model_type=model_type,
             evaluators=evaluators,
-            validation_thresholds=validation_thresholds,
-            custom_metrics=custom_metrics,
-            baseline_model=None
-            if not enable_baseline_comparison
-            else baseline_model_uri,
+            extra_metrics=custom_metrics,
             evaluator_config=evaluator_config,
         )
+        if enable_baseline_comparison:
+            baseline_eval_result = mlflow.evaluate(
+                # model=get_fs_model,
+                data=get_fs_model(data.toPandas(), baseline_model_uri),
+                targets=targets,
+                predictions="prediction",
+                model_type=model_type,
+                evaluators=evaluators,
+                extra_metrics=custom_metrics,
+                evaluator_config=evaluator_config,
+            )
+        else:
+            baseline_eval_result = None
+            
         metrics_file = os.path.join(tmp_dir, "metrics.txt")
         with open(metrics_file, "w") as f:
             f.write(
@@ -285,7 +297,7 @@ with mlflow.start_run(
             for metric in eval_result.metrics:
                 candidate_metric_value = str(eval_result.metrics[metric])
                 baseline_metric_value = "N/A"
-                if metric in eval_result.baseline_model_metrics:
+                if (baseline_eval_result is not None) and (metric in baseline_eval_result.metrics):
                     mlflow.log_metric(
                         "baseline_" + metric, eval_result.baseline_model_metrics[metric]
                     )
@@ -298,11 +310,15 @@ with mlflow.start_run(
                     )
                 )
         mlflow.log_artifact(metrics_file)
+        
+        mlflow.validate_evaluation_results(validation_thresholds, eval_result, baseline_eval_result)
+
         log_to_model_description(run, True)
+        version = client.get_model_version_by_alias(model_name, model_version).version
         
         # Assign "challenger" alias to indicate model version has passed validation checks
         print("Validation checks passed. Assigning 'challenger' alias to model version.")
-        client.set_registered_model_alias(model_name, "challenger", model_version)
+        client.set_registered_model_alias(model_name, "challenger", version)
         
     except Exception as err:
         raise ValueError(err)
