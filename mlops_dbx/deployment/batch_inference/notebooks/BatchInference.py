@@ -33,30 +33,6 @@ dbutils.widgets.text(
 
 # COMMAND ----------
 
-import os
-
-notebook_path =  '/Workspace/' + os.path.dirname(dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get())
-%cd $notebook_path
-
-# COMMAND ----------
-
-# MAGIC %pip install -r ../../../requirements.txt
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
-import sys
-import os
-notebook_path =  '/Workspace/' + os.path.dirname(dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get())
-%cd $notebook_path
-%cd ..
-sys.path.append("../..")
-
-# COMMAND ----------
-
 # DBTITLE 1,Define input and output variables
 
 env = dbutils.widgets.get("env")
@@ -85,9 +61,15 @@ from datetime import datetime
 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # COMMAND ----------
+
 # DBTITLE 1,Load model and run inference
+import sys
+sys.path.append('../..')
+from batch_inference.predict import predict_batch
+import pyspark.sql.functions as f
 
-from predict import predict_batch
+input_table = spark.table(input_table_name).select(
+                f.col("customerID").alias("customer_id"))
 
-predict_batch(spark, model_uri, input_table_name, output_table_name, model_version, ts)
+predict_batch(model_uri, input_table, output_table_name, model_version, ts)
 dbutils.notebook.exit(output_table_name)

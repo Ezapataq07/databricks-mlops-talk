@@ -319,6 +319,9 @@ with mlflow.start_run(
         # Assign "challenger" alias to indicate model version has passed validation checks
         print("Validation checks passed. Assigning 'challenger' alias to model version.")
         client.set_registered_model_alias(model_name, "challenger", version)
+        client.delete_registered_model_alias(
+                name=model_name,
+                alias="staging")
         
     except Exception as err:
         raise ValueError(err)
