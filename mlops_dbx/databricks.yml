@@ -31,28 +31,30 @@ targets:
   dev:  # UC Catalog Name 
     mode: development
     default: true
-    root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
+    
     variables:
       catalog_name: mlops_dbx_talk_${bundle.target}
     workspace:
       # TODO: add dev workspace URL
       host: https://dbc-0f89edfa-de75.cloud.databricks.com/
+      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
 
   staging:
     variables:
       catalog_name: mlops_dbx_talk_${bundle.target}
     workspace:
       host: https://dbc-0f89edfa-de75.cloud.databricks.com/
-    root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
+      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
 
   prod:
     variables:
       catalog_name: mlops_dbx_talk_${bundle.target}
     workspace:
       host: https://dbc-0f89edfa-de75.cloud.databricks.com
-    root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
-  test:
-    variables:
-      catalog_name: mlops_dbx_talk_${bundle.target}
-    workspace:
-      host: https://dbc-0f89edfa-de75.cloud.databricks.com
+      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
+  # test:
+  #   variables:
+  #     catalog_name: mlops_dbx_talk_${bundle.target}
+  #   workspace:
+  #     host: https://dbc-0f89edfa-de75.cloud.databricks.com
+  #     root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
