@@ -52,9 +52,9 @@ targets:
     workspace:
       host: https://dbc-0f89edfa-de75.cloud.databricks.com
       root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
-  # test:
-  #   variables:
-  #     catalog_name: mlops_dbx_talk_${bundle.target}
-  #   workspace:
-  #     host: https://dbc-0f89edfa-de75.cloud.databricks.com
-  #     root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
+  test:
+    variables:
+      catalog_name: mlops_dbx_talk_${bundle.target}
+    workspace:
+      host: https://dbc-0f89edfa-de75.cloud.databricks.com
+      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
