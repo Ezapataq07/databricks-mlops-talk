@@ -29,7 +29,11 @@ jobs:
       - name: Validate Bundle For Staging
         id: validate
         env:
+          DATABRICKS_AUTH_TYPE: oauth-m2m
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
           DATABRICKS_TOKEN: ${{ env.STAGING_WORKSPACE_TOKEN }}
+
         run: |
           databricks bundle validate -t staging > ../validate_output.txt
       - name: Create Comment with Bundle Configuration
