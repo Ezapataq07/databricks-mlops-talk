@@ -29,7 +29,7 @@ resources:
               # TODO: Update training_data_path
               experiment_name: ${var.experiment_name}
               model_name: ${var.catalog_name}.churn.${var.model_name}
-              features_table: ${var.catalog_name}.churn.telco_churn_model
+              features_table: ${var.catalog_name}.churn.telco_cust_features
               training_data_raw: ${var.catalog_name}.churn.telco_churn_train_raw
               # git source information of current ML resource deployment. It will be persisted as part of the workflow run
               git_source_info: url:${bundle.git.origin_url}; branch:${bundle.git.branch}; commit:${bundle.git.commit}
