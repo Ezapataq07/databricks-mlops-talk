@@ -8,10 +8,10 @@ bundle:
 variables:
   experiment_name:
     description: Experiment name for the model training.
-    default: /Users/${workspace.current_user.userName}/${bundle.target}-mlops_dbx-experiment
+    default: /Workspace/Shared/mlops_talk/telco_churn_model_github
   model_name:
     description: Model name for the model training.
-    default: mlops_dbx-model
+    default: telco_churn_model
   catalog_name:
     description: The catalog name to save the trained model
     
@@ -31,26 +31,30 @@ targets:
   dev:  # UC Catalog Name 
     mode: development
     default: true
+    
     variables:
-      catalog_name: dev
+      catalog_name: mlops_dbx_talk_${bundle.target}
     workspace:
       # TODO: add dev workspace URL
-      host:
+      host: https://dbc-0f89edfa-de75.cloud.databricks.com/
+      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
 
   staging:
     variables:
-      catalog_name: mlops_dbx_talk
+      catalog_name: mlops_dbx_talk_${bundle.target}
     workspace:
-      host: https://dbc-0f89edfa-de75.cloud.databricks.com
+      host: https://dbc-0f89edfa-de75.cloud.databricks.com/
+      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
 
   prod:
     variables:
-      catalog_name: mlops_dbx_talk
+      catalog_name: mlops_dbx_talk_${bundle.target}
     workspace:
       host: https://dbc-0f89edfa-de75.cloud.databricks.com
-
+      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
   test:
     variables:
-      catalog_name: mlops_dbx_talk
+      catalog_name: mlops_dbx_talk_${bundle.target}
     workspace:
       host: https://dbc-0f89edfa-de75.cloud.databricks.com
+      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}

@@ -1,7 +1,7 @@
 import sys
 import pathlib
 
-sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
+# sys.path.append(str(pathlib.Path(__file__).parent.parent.parent.resolve()))
 
 from mlflow.tracking import MlflowClient
 
@@ -16,9 +16,10 @@ def deploy(model_uri, env):
     :return:
     """
     print(f"Deployment running in env: {env}")
-    _, model_name, version = model_uri.split("/")
+    model_name, alias = model_uri.split("/")[1].split("@")
     client = MlflowClient(registry_uri="databricks-uc")
-    mv = client.get_model_version(model_name, version)
+    mv = client.get_model_version_by_alias(model_name, alias)
+    version = mv.version
     target_alias = "champion"
     if target_alias not in mv.aliases:
         client.set_registered_model_alias(

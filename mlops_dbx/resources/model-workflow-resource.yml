@@ -1,11 +1,11 @@
-new_cluster: &new_cluster
-  new_cluster:
-    num_workers: 3
-    spark_version: 15.3.x-cpu-ml-scala2.12
-    node_type_id: i3.xlarge
-    data_security_mode: "SINGLE_USER"
-    custom_tags:
-      clusterSource: mlops-stacks_0.4
+# new_cluster: &new_cluster
+#   new_cluster:
+#     num_workers: 3
+#     spark_version: 15.3.x-cpu-ml-scala2.12
+#     node_type_id: i3.xlarge
+#     data_security_mode: "SINGLE_USER"
+#     custom_tags:
+#       clusterSource: mlops-stacks_0.4
 
 common_permissions: &permissions
   permissions:
@@ -16,32 +16,34 @@ resources:
   jobs:
     model_training_job:
       name: ${bundle.target}-mlops_dbx-model-training-job
-      job_clusters:
-        - job_cluster_key: model_training_job_cluster
-          <<: *new_cluster
+      # job_clusters:
+      #   - job_cluster_key: model_training_job_cluster
+      #     <<: *new_cluster
       tasks:
         - task_key: Train
-          job_cluster_key: model_training_job_cluster
+          # job_cluster_key: model_training_job_cluster
           notebook_task:
-            notebook_path: ../training/notebooks/TrainWithFeatureStore.py
+            notebook_path: ../training/notebooks/TrainWithFeatureStore.ipynb
             base_parameters:
               env: ${bundle.target}
               # TODO: Update training_data_path
-              training_data_path: /databricks-datasets/nyctaxi-with-zipcodes/subsampled
               experiment_name: ${var.experiment_name}
-              model_name: ${var.catalog_name}.mlops_dbx.${var.model_name}
-              pickup_features_table: ${var.catalog_name}.mlops_dbx.trip_pickup_features
-              dropoff_features_table: ${var.catalog_name}.mlops_dbx.trip_dropoff_features
+              model_name: ${var.catalog_name}.churn.${var.model_name}
+              catalog_name: ${var.catalog_name}
+              features_table: ${var.catalog_name}.churn.telco_cust_features
+              training_data_raw: ${var.catalog_name}.churn.telco_churn_train_raw
               # git source information of current ML resource deployment. It will be persisted as part of the workflow run
               git_source_info: url:${bundle.git.origin_url}; branch:${bundle.git.branch}; commit:${bundle.git.commit}
         - task_key: ModelValidation
-          job_cluster_key: model_training_job_cluster
+          # job_cluster_key: model_training_job_cluster
           depends_on:
             - task_key: Train
           notebook_task:
-            notebook_path: ../validation/notebooks/ModelValidation.py
+            notebook_path: ../validation/notebooks/ModelValidation.ipynb
             base_parameters:
               experiment_name: ${var.experiment_name}
+              model_version: staging
+              model_name: ${var.catalog_name}.churn.${var.model_name}
               # The `run_mode` defines whether model validation is enabled or not.
               # It can be one of the three values:
               # `disabled` : Do not run the model validation notebook.
@@ -50,22 +52,22 @@ resources:
               # `enabled`  : Run the model validation notebook. Move model to Production stage only if all model validation
               #               rules are passing.
               # TODO: update run_mode
-              run_mode: dry_run
+              run_mode: enabled
               # Whether to load the current registered "Production" stage model as baseline.
               # Baseline model is a requirement for relative change and absolute change validation thresholds.
               # TODO: update enable_baseline_comparison
               enable_baseline_comparison: "false"
               # Please refer to data parameter in mlflow.evaluate documentation https://mlflow.org/docs/latest/python_api/mlflow.html#mlflow.evaluate
               # TODO: update validation_input
-              validation_input: SELECT * FROM delta.`dbfs:/databricks-datasets/nyctaxi-with-zipcodes/subsampled`
+              validation_input: ${var.catalog_name}.churn.telco_churn_validation
               # A string describing the model type. The model type can be either "regressor" and "classifier".
               # Please refer to model_type parameter in mlflow.evaluate documentation https://mlflow.org/docs/latest/python_api/mlflow.html#mlflow.evaluate
               # TODO: update model_type
-              model_type: regressor
+              model_type: classifier
               # The string name of a column from data that contains evaluation labels.
               # Please refer to targets parameter in mlflow.evaluate documentation https://mlflow.org/docs/latest/python_api/mlflow.html#mlflow.evaluate
               # TODO: targets
-              targets: fare_amount
+              targets: churn
               # Specifies the name of the function in mlops_dbx/training_validation_deployment/validation/validation.py that returns custom metrics.
               # TODO(optional): custom_metrics_loader_function
               custom_metrics_loader_function: custom_metrics
@@ -78,13 +80,14 @@ resources:
               # git source information of current ML resource deployment. It will be persisted as part of the workflow run
               git_source_info: url:${bundle.git.origin_url}; branch:${bundle.git.branch}; commit:${bundle.git.commit}
         - task_key: ModelDeployment
-          job_cluster_key: model_training_job_cluster
+          # job_cluster_key: model_training_job_cluster
           depends_on:
             - task_key: ModelValidation
           notebook_task:
-            notebook_path: ../deployment/model_deployment/notebooks/ModelDeployment.py
+            notebook_path: ../deployment/model_deployment/notebooks/ModelDeployment.ipynb
             base_parameters:
               env: ${bundle.target}
+              model_name: ${var.catalog_name}.churn.${var.model_name}
               # git source information of current ML resource deployment. It will be persisted as part of the workflow run
               git_source_info: url:${bundle.git.origin_url}; branch:${bundle.git.branch}; commit:${bundle.git.commit}
       schedule:

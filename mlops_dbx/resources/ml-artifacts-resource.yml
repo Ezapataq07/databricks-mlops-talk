@@ -17,7 +17,7 @@ resources:
       model:
         name: ${var.model_name}
         catalog_name: ${var.catalog_name}
-        schema_name: mlops_dbx
+        schema_name: churn
         comment: Registered model in Unity Catalog for the "mlops_dbx" ML Project for ${bundle.target} deployment target.
         <<: *grants
 

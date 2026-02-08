@@ -46,17 +46,37 @@ jobs:
       - uses: databricks/setup-cli@v0.236.0
       - name: Validate Bundle For Test Deployment Target in Staging Workspace
         id: validate
+        env:
+          DATABRICKS_AUTH_TYPE: oauth-m2m
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.STAGING_WORKSPACE_TOKEN }}
         run: |
           databricks bundle validate -t test
       - name: Deploy Bundle to Test Deployment Target in Staging Workspace
         id: deploy
+        env:
+          DATABRICKS_AUTH_TYPE: oauth-m2m
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.STAGING_WORKSPACE_TOKEN }}
         run: |
           databricks bundle deploy -t test
       - name: Run Feature Engineering Workflow for Test Deployment Target in Staging Workspace
         id: feature_engineering
+        env:
+          DATABRICKS_AUTH_TYPE: oauth-m2m
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.STAGING_WORKSPACE_TOKEN }}
         run: |
           databricks bundle run write_feature_table_job -t test
       - name: Run Training Workflow for Test Deployment Target in Staging Workspace
         id: training
+        env:
+          DATABRICKS_AUTH_TYPE: oauth-m2m
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.STAGING_WORKSPACE_TOKEN }}
         run: |
           databricks bundle run model_training_job -t test

@@ -14,7 +14,21 @@ def custom_metrics():
         """
         return np.sum(np.abs(eval_df["prediction"] - eval_df["target"] + 1) ** 2)
 
-    return [make_metric(eval_fn=squared_diff_plus_one, greater_is_better=False)]
+    def recall_metric(eval_df, _builtin_metrics):
+        """
+        Custom recall metric for binary classification.
+        Assumes 'prediction' and 'target' columns are present.
+        """
+        true_positives = np.sum((eval_df["prediction"] == 1) & (eval_df["target"] == 1))
+        actual_positives = np.sum(eval_df["target"] == 1)
+        if actual_positives == 0:
+            return 0.0
+        return true_positives / actual_positives
+
+    return [
+        # make_metric(eval_fn=squared_diff_plus_one, greater_is_better=False),
+        make_metric(name="recall", eval_fn=recall_metric, greater_is_better=True)
+    ]
 
 
 # Define model validation rules. Return empty dict if validation rules are not needed.
@@ -22,14 +36,18 @@ def custom_metrics():
 # TODO(optional) : validation_thresholds
 def validation_thresholds():
     return {
-        "max_error": MetricThreshold(
-            threshold=500, greater_is_better=False  # max_error should be <= 500
-        ),
-        "mean_squared_error": MetricThreshold(
-            threshold=500,  # mean_squared_error should be <= 500
-            # min_absolute_change=0.01,  # mean_squared_error should be at least 0.01 greater than baseline model accuracy
-            # min_relative_change=0.01,  # mean_squared_error should be at least 1 percent greater than baseline model accuracy
-            greater_is_better=False,
+        # "max_error": MetricThreshold(
+        #     threshold=500, greater_is_better=False  # max_error should be <= 500
+        # ),
+        # "mean_squared_error": MetricThreshold(
+        #     threshold=500,  # mean_squared_error should be <= 500
+        #     # min_absolute_change=0.01,  # mean_squared_error should be at least 0.01 greater than baseline model accuracy
+        #     # min_relative_change=0.01,  # mean_squared_error should be at least 1 percent greater than baseline model accuracy
+        #     greater_is_better=False,
+        # ),
+        "recall": MetricThreshold(
+            threshold=0.5, 
+            greater_is_better=True,
         ),
     }
 
