@@ -8,7 +8,7 @@ bundle:
 variables:
   experiment_name:
     description: Experiment name for the model training.
-    default: /Workspace/Shared/mlops_talk/telco_churn_model_github
+    default: /Workspace/Shared/mlops_talk/${bundle.target}-telco_churn_model
   model_name:
     description: Model name for the model training.
     default: telco_churn_model
