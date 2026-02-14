@@ -25,4 +25,4 @@ resources:
     experiment:
       name: ${var.experiment_name}
       <<: *permissions
-      description: MLflow Experiment used to track runs for mlops_dbx project.
+      # description: MLflow Experiment used to track runs for mlops_dbx project.
