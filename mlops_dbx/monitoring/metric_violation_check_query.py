@@ -58,7 +58,7 @@ SELECT
 
 sql_query = """WITH recent_metrics AS (
   SELECT
-    {metric_:contentReference[oaicite:6]{index=6}_value,
+    {metric_to_monitor},
     window
   FROM
     {table_name_under_monitor}_profile_metrics
