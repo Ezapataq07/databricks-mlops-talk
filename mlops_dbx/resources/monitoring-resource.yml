@@ -23,7 +23,7 @@ resources:
       # TODO: Update the output schema name as per your requirements
       output_schema_name: ${var.catalog_name}.churn
       # TODO: Update the below parameters as per your requirements
-      assets_dir: /Users/${workspace.current_user.userName}/databricks_lakehouse_monitoring/${bundle.target}
+      assets_dir: /Users/${workspace.current_user.userName}/.bundle/databricks_lakehouse_monitoring/${bundle.target}
       inference_log:
         granularities: [1 day]
         model_id_col: model_id
@@ -61,7 +61,6 @@ resources:
             op: EQUAL_TO
             left: "{{tasks.monitored_metric_violation_check.values.is_metric_violated}}"
             right: "true"
-          git_source_info: url:${bundle.git.origin_url}; branch:${bundle.git.branch}; commit:${bundle.git.commit}
 
         - task_key: trigger_retraining
           depends_on:
@@ -69,8 +68,7 @@ resources:
               outcome: "true"
           run_job_task:
             job_id: ${resources.jobs.model_training_job.id}
-            git_source_info: url:${bundle.git.origin_url}; branch:${bundle.git.branch}; commit:${bundle.git.commit}
-
+            
       schedule:
         quartz_cron_expression: "0 0 18 * * ?" # daily at 6pm
         timezone_id: UTC
