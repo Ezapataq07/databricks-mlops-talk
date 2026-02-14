@@ -25,7 +25,7 @@ include:
   - ./resources/model-workflow-resource.yml
   - ./resources/feature-engineering-workflow-resource.yml
   # TODO: uncomment once monitoring inference table has been created
-  # - ./resources/monitoring-resource.yml
+  - ./resources/monitoring-resource.yml
 
 # Deployment Target specific values for workspace
 targets:
@@ -38,7 +38,7 @@ targets:
     workspace:
       # TODO: add dev workspace URL
       host: https://dbc-0f89edfa-de75.cloud.databricks.com/
-      root_path: /Workspace/Shared/.bundle/mlops_dbx/${bundle.target}
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/mlops_dbx/${bundle.target}
 
   staging:
     variables:
