@@ -58,15 +58,16 @@ SELECT
 
 sql_query = """WITH recent_metrics AS (
   SELECT
-    {metric_to_monitor},
+    {metric_:contentReference[oaicite:6]{index=6}_value,
     window
   FROM
     {table_name_under_monitor}_profile_metrics
   WHERE
     column_name = ":table"
     AND slice_key IS NULL
-    AND model_id != "*"
     AND log_type = "INPUT"
+    -- keep the next line ONLY if your monitor uses model_id_col
+    AND model_id != "*"
   ORDER BY
     window DESC
   LIMIT
@@ -75,9 +76,9 @@ sql_query = """WITH recent_metrics AS (
 SELECT
   CASE
     WHEN
-      (SELECT COUNT(*) FROM recent_metrics WHERE {metric_to_monitor} > {metric_violation_threshold}) >= {num_violation_windows}
+      (SELECT COUNT(*) FROM recent_metrics WHERE metric_value {metric_violation_operator} {metric_violation_threshold}) >= {num_violation_windows}
       AND
-      (SELECT {metric_to_monitor} FROM recent_metrics ORDER BY window DESC LIMIT 1) > {metric_violation_threshold}
+      (SELECT metric_value FROM recent_metrics ORDER BY window DESC LIMIT 1) {metric_violation_operator} {metric_violation_threshold}
     THEN 1
     ELSE 0
   END AS query_result

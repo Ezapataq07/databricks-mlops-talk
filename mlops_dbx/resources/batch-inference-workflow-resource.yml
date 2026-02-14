@@ -39,6 +39,8 @@ resources:
               env: ${bundle.target}
               input_table_name: ${var.catalog_name}.churn.telco_churn_inference_raw
               output_table_name: ${var.catalog_name}.churn.telco_churn_predictions
+              inference_table_name: ${var.catalog_name}.churn.telco_churn_inference_table
+              label_table_name: ${var.catalog_name}.churn.telco_cust_labels
               model_name: ${var.catalog_name}.churn.${var.model_name}
               # git source information of current ML resource deployment. It will be persisted as part of the workflow run
               git_source_info: url:${bundle.git.origin_url}; branch:${bundle.git.branch}; commit:${bundle.git.commit}
