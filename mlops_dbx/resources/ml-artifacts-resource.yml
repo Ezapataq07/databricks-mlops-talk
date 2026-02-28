@@ -21,8 +21,8 @@ resources:
         comment: Registered model in Unity Catalog for the "mlops_dbx" ML Project for ${bundle.target} deployment target.
         <<: *grants
 
-  experiments:
-    experiment:
-      name: ${var.experiment_name}
-      <<: *permissions
-      # description: MLflow Experiment used to track runs for mlops_dbx project.
+  # experiments:
+  #   experiment:
+  #     name: ${var.experiment_name}
+  #     <<: *permissions
+  #     # description: MLflow Experiment used to track runs for mlops_dbx project.
