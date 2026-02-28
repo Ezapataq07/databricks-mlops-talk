@@ -12,7 +12,7 @@ variables:
     default: /Workspace/Shared/mlops_talk/${bundle.target}-telco_churn_model
   model_name:
     description: Model name for the model training.
-    default: telco_churn_model
+    default: mlops_dbx_talk_${bundle.target}.churn.telco_churn_model
   catalog_name:
     description: The catalog name to save the trained model
     
